@@ -1,0 +1,13 @@
+package com.hafood.sistema.constant;
+
+public enum TipoMovimiento {
+    ENTRADA_COMPRA,
+    ENTRADA_AJUSTE,
+    ENTRADA_TRASPASO,
+    ENTRADA_TRANSFORMACION,
+    SALIDA_VENTA,
+    SALIDA_MERMA,
+    SALIDA_AJUSTE,
+    SALIDA_TRASPASO,
+    SALIDA_TRANSFORMACION
+}

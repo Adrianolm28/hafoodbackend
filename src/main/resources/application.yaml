@@ -1,0 +1,28 @@
+spring:
+  servlet:
+    multipart:
+      max-file-size: 6MB
+      max-request-size: 7MB
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:5440/hafood_db
+    username: postgres
+    password: rootpassword
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+
+jwt:
+  secret: MxkrP4NmQob5jWsYLTupSc2NnhrB7MTnJYppL7+FTeJLQlV49SgQiJ+Gb+gyLT+W
+  expiration: 86400000
+
+app:
+  storage:
+    postgres-port: 5440
+    images-path: ./uploads
+
+logging:
+  level:
+    org.springframework.security: DEBUG

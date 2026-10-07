@@ -1,0 +1,9 @@
+package com.hafood.sistema.repository;
+
+import com.hafood.sistema.domain.pos.OperacionProcesada;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface OperacionProcesadaRepository extends JpaRepository<OperacionProcesada, Long> {
+
+    boolean existsByClave(String clave);
+}
