@@ -3,9 +3,13 @@ package com.hafood.sistema.controller;
 import com.hafood.sistema.constant.EstacionComanda;
 import com.hafood.sistema.domain.user.Usuario;
 import com.hafood.sistema.dto.CuentaDTO;
+import com.hafood.sistema.dto.EnvioComandaDTO;
 import com.hafood.sistema.dto.EstacionLineaDTO;
 import com.hafood.sistema.dto.request.CuentaRequests;
+import com.hafood.sistema.service.AutorizacionService;
 import com.hafood.sistema.service.ComandaService;
+import com.hafood.sistema.util.ClientIp;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,14 +24,8 @@ import java.util.List;
 public class ComandaController {
 
     private final ComandaService comandaService;
+    private final AutorizacionService autorizacionService;
 
-    @PostMapping("/cuentas/{id}/comandas")
-    public ResponseEntity<CuentaDTO> enviar(
-            @PathVariable Long id,
-            @RequestBody @Valid CuentaRequests.EnviarComanda request,
-            @AuthenticationPrincipal Usuario actor) {
-        return ResponseEntity.ok(comandaService.enviar(id, request, actor));
-    }
 
     @PutMapping("/lineas/{lineaId}/estado")
     public ResponseEntity<Void> cambiarEstado(
@@ -44,5 +42,37 @@ public class ComandaController {
             @RequestParam Long sedeId,
             @AuthenticationPrincipal Usuario actor) {
         return ResponseEntity.ok(comandaService.listar(estacion, sedeId, actor));
+    }
+
+    @PostMapping("/cuentas/{id}/comandas")
+    public ResponseEntity<EnvioComandaDTO> enviar(
+            @PathVariable Long id,
+            @RequestBody @Valid CuentaRequests.EnviarComanda request,
+            @AuthenticationPrincipal Usuario actor) {
+        return ResponseEntity.ok(comandaService.enviar(id, request, actor));
+    }
+
+    @PostMapping("/cuentas/{id}/lineas/{lineaId}/anular")
+    public ResponseEntity<CuentaDTO> anularLinea(
+            @PathVariable Long id,
+            @PathVariable Long lineaId,
+            @RequestBody @Valid CuentaRequests.AnularLinea request,
+            @AuthenticationPrincipal Usuario actor,
+            HttpServletRequest http) {
+        Usuario autorizador = null;
+
+        if (comandaService.requiereAutoridad(id, lineaId, actor)) {
+            autorizador = autorizacionService.resolver(actor, request.autorizador(), id, ClientIp.de(http));
+        }
+
+        return ResponseEntity.ok(comandaService.anularLinea(id, lineaId, request, actor, autorizador));
+    }
+
+    @PostMapping("/lineas/{lineaId}/visto")
+    public ResponseEntity<Void> marcarVisto(
+            @PathVariable Long lineaId,
+            @AuthenticationPrincipal Usuario actor) {
+        comandaService.marcarAnulacionVista(lineaId, actor);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -6,6 +6,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 public interface RecetaPlatoRepository extends JpaRepository<RecetaPlato, Long> {
 
@@ -16,4 +18,6 @@ public interface RecetaPlatoRepository extends JpaRepository<RecetaPlato, Long> 
     boolean existsByInsumoId(Long insumoId);
 
     void deleteByPlatoId(Long platoId);
+
+    List<RecetaPlato> findAllByPlatoId(Long platoId);
 }

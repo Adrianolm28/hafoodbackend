@@ -23,7 +23,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-
+import com.hafood.sistema.domain.pos.CuentaDescuento;
+import com.hafood.sistema.dto.AvisoStockDTO;
+import com.hafood.sistema.dto.EnvioComandaDTO;
+import com.hafood.sistema.repository.CuentaDescuentoRepository;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -42,6 +45,8 @@ public class ComandaService {
             List.of(EstadoLinea.ENVIADA, EstadoLinea.EN_PREPARACION, EstadoLinea.LISTA);
     private static final List<EstadoCuenta> CUENTAS_VIVAS =
             List.of(EstadoCuenta.ABIERTA, EstadoCuenta.PRECUENTA, EstadoCuenta.PAGO_PARCIAL);
+    private static final List<EstadoLinea> AVANZADAS =
+            List.of(EstadoLinea.EN_PREPARACION, EstadoLinea.LISTA, EstadoLinea.ENTREGADA);
 
     private final CuentaService cuentaService;
     private final CuentaLineaRepository cuentaLineaRepository;
@@ -51,13 +56,15 @@ public class ComandaService {
     private final UsuarioRepository usuarioRepository;
     private final SedeAccesoService sedeAccesoService;
     private final AuditoriaService auditoriaService;
+    private final ConsumoVentaService consumoVentaService;
+    private final CuentaDescuentoRepository cuentaDescuentoRepository;
 
     @Transactional
-    public CuentaDTO enviar(Long cuentaId, CuentaRequests.EnviarComanda request, Usuario actor) {
+    public EnvioComandaDTO enviar(Long cuentaId, CuentaRequests.EnviarComanda request, Usuario actor) {
         Cuenta cuenta = cuentaService.bloquear(cuentaId, actor);
 
         if (operacionRepository.existsByClave(request.claveIdempotencia())) {
-            return cuentaService.responder(cuenta);
+            return new EnvioComandaDTO(cuentaService.responder(cuenta), List.of());
         }
 
         if (cuenta.getEstado() != EstadoCuenta.ABIERTA) {
@@ -101,13 +108,15 @@ public class ComandaService {
 
         cuentaLineaRepository.saveAll(borradores);
 
+        List<AvisoStockDTO> avisos = consumoVentaService.descontar(cuenta, borradores, actor);
+
         operacionRepository.save(OperacionProcesada.builder()
                 .clave(request.claveIdempotencia())
                 .tipo(OPERACION_ENVIAR)
                 .cuentaId(cuentaId)
                 .build());
 
-        return cuentaService.responder(cuenta);
+        return new EnvioComandaDTO(cuentaService.responder(cuenta), avisos);
     }
 
     @Transactional
@@ -119,6 +128,10 @@ public class ComandaService {
 
         CuentaLinea linea = cuentaLineaRepository.findByIdAndCuentaId(lineaId, cuentaId)
                 .orElseThrow(() -> conflicto("El producto cambió de cuenta. Actualiza la pantalla"));
+
+        if (linea.getEstado() == EstadoLinea.ANULADA) {
+            throw conflicto("El producto fue anulado. Actualiza la pantalla");
+        }
 
         if (!CUENTAS_VIVAS.contains(cuenta.getEstado())) {
             throw conflicto("La cuenta ya está cerrada");
@@ -154,7 +167,8 @@ public class ComandaService {
         sedeAccesoService.exigirAcceso(actor, sedeId);
 
         TipoCategoria tipo = estacion == EstacionComanda.BARRA ? TipoCategoria.BEBIDA : TipoCategoria.PLATO;
-        List<CuentaLinea> lineas = cuentaLineaRepository.findParaEstacion(sedeId, tipo, EN_ESTACION, CUENTAS_VIVAS);
+        List<CuentaLinea> lineas = cuentaLineaRepository.findParaEstacion(
+                sedeId, tipo, EN_ESTACION, CUENTAS_VIVAS, EstadoLinea.ANULADA);
 
         Map<Long, String> mesas = cuentaMesaRepository.findVigentesBySedeId(sedeId).stream()
                 .collect(Collectors.groupingBy(
@@ -172,7 +186,9 @@ public class ComandaService {
                         l.getCantidad(),
                         l.getNota(),
                         l.getEstado(),
-                        l.getEnviadaEn()))
+                        l.getEnviadaEn(),
+                        l.getAnuladaEn(),
+                        l.getMotivoAnulacion()))
                 .toList();
     }
 
@@ -182,5 +198,98 @@ public class ComandaService {
 
     private ResponseStatusException conflicto(String mensaje) {
         return new ResponseStatusException(HttpStatus.CONFLICT, mensaje);
+    }
+
+
+
+    @Transactional(readOnly = true)
+    public boolean requiereAutoridad(Long cuentaId, Long lineaId, Usuario actor) {
+        CuentaLinea linea = cuentaLineaRepository.findByIdAndCuentaId(lineaId, cuentaId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El producto no existe en esta cuenta"));
+        sedeAccesoService.exigirAcceso(actor, linea.getCuenta().getSede().getId());
+        return AVANZADAS.contains(linea.getEstado());
+    }
+
+    @Transactional
+    public CuentaDTO anularLinea(Long cuentaId, Long lineaId, CuentaRequests.AnularLinea request,
+                                 Usuario actor, Usuario autorizador) {
+        Cuenta cuenta = cuentaService.bloquear(cuentaId, actor);
+
+        if (cuenta.getEstado() != EstadoCuenta.ABIERTA) {
+            throw conflicto("Solo se pueden anular productos en una cuenta abierta");
+        }
+
+        CuentaLinea linea = cuentaLineaRepository.findByIdAndCuentaId(lineaId, cuentaId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El producto no existe en esta cuenta"));
+        EstadoLinea estado = linea.getEstado();
+
+        if (estado == EstadoLinea.ANULADA) {
+            throw conflicto("El producto ya fue anulado");
+        }
+        if (estado == EstadoLinea.BORRADOR) {
+            throw conflicto("El producto aún no se envió. Quítalo directamente de la cuenta");
+        }
+
+        boolean avanzada = AVANZADAS.contains(estado);
+
+        if (avanzada && autorizador == null) {
+            throw conflicto("El producto ya avanzó en cocina o barra. Vuelve a intentarlo con la autorización de un encargado");
+        }
+
+        boolean merma = avanzada || Boolean.TRUE.equals(request.seEstabaPreparando());
+        String motivo = request.motivo().trim();
+        Instant ahora = Instant.now();
+        Usuario usuario = usuarioRepository.getReferenceById(actor.getId());
+        String antes = "estado=" + estado + ";" + linea.getCantidad() + "x " + linea.getNombre()
+                + " @ " + linea.getPrecioUnitario().toPlainString();
+
+        linea.setEstado(EstadoLinea.ANULADA);
+        linea.setAnuladaEn(ahora);
+        linea.setAnuladaPor(usuario);
+        linea.setMotivoAnulacion(motivo);
+        linea.setAnulacionVista(false);
+        linea.setMermaAnulacion(merma);
+        cuentaLineaRepository.save(linea);
+
+        consumoVentaService.revertir(cuenta, linea, merma, actor);
+
+        List<CuentaDescuento> afectados = cuentaDescuentoRepository.findActivosByCuentaId(cuentaId).stream()
+                .filter(d -> d.getLinea() != null && d.getLinea().getId().equals(lineaId))
+                .toList();
+        afectados.forEach(d -> {
+            d.setActivo(false);
+            d.setQuitadoEn(ahora);
+            d.setQuitadoPor(usuario);
+            d.setMotivoQuitado("Producto anulado");
+        });
+
+        auditoriaService.registrar(actor, cuenta.getSede().getId(), cuentaId, AccionAuditoria.LINEA_ANULADA,
+                antes,
+                "estado=" + EstadoLinea.ANULADA + ";merma=" + merma
+                        + ";autoriza=" + (autorizador == null ? "-" : autorizador.getUsername())
+                        + (afectados.isEmpty() ? "" : ";descuentos desactivados=" + afectados.size()),
+                motivo);
+
+        return cuentaService.responder(cuenta);
+    }
+
+    @Transactional
+    public void marcarAnulacionVista(Long lineaId, Usuario actor) {
+        Long cuentaId = cuentaLineaRepository.findCuentaIdByLineaId(lineaId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El producto no existe"));
+
+        cuentaService.bloquear(cuentaId, actor);
+
+        CuentaLinea linea = cuentaLineaRepository.findByIdAndCuentaId(lineaId, cuentaId)
+                .orElseThrow(() -> conflicto("El producto cambió de cuenta. Actualiza la pantalla"));
+
+        if (linea.getEstado() != EstadoLinea.ANULADA) {
+            throw conflicto("El producto no está anulado");
+        }
+
+        if (!Boolean.TRUE.equals(linea.getAnulacionVista())) {
+            linea.setAnulacionVista(true);
+            cuentaLineaRepository.save(linea);
+        }
     }
 }

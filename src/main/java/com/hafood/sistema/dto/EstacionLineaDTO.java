@@ -14,6 +14,7 @@ public record EstacionLineaDTO(
         Integer cantidad,
         String nota,
         EstadoLinea estado,
-        Instant enviadaEn
-) {
-}
+        Instant enviadaEn,
+        Instant anuladaEn,
+        String motivoAnulacion
+) { }

@@ -27,7 +27,9 @@ public record CuentaDTO(
         BigDecimal total,
         List<MesaRef> mesas,
         List<Linea> lineas,
-        List<Descuento> descuentos
+        List<Descuento> descuentos,
+        Long cajaSesionId,
+        String cajaNombre
 ) {
 
     public record MesaRef(Long id, String nombre, String seccionNombre) {

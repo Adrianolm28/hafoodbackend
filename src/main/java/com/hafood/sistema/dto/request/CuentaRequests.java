@@ -96,4 +96,12 @@ public final class CuentaRequests {
 
     public record CambiarEstadoLinea(@NotNull(message = "El estado es obligatorio") EstadoLinea estado) {
     }
+
+    public record AnularLinea(
+            @NotBlank(message = "El motivo es obligatorio")
+            @Size(max = 200, message = "El motivo no puede superar los 200 caracteres") String motivo,
+            Boolean seEstabaPreparando,
+            Autorizador autorizador
+    ) {
+    }
 }

@@ -91,4 +91,21 @@ public class CuentaLinea {
 
     @Column(name = "entregada_en")
     private Instant entregadaEn;
+
+    @Column(name = "anulada_en")
+    private Instant anuladaEn;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "anulada_por_id")
+    private Usuario anuladaPor;
+
+    @Column(name = "motivo_anulacion", length = 200)
+    private String motivoAnulacion;
+
+    @Column(name = "anulacion_vista")
+    @Builder.Default
+    private Boolean anulacionVista = false;
+
+    @Column(name = "merma_anulacion")
+    private Boolean mermaAnulacion;
 }

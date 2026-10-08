@@ -1,6 +1,7 @@
 package com.hafood.sistema.domain.pos;
 
 import com.hafood.sistema.constant.EstadoCuenta;
+import com.hafood.sistema.domain.caja.CajaSesion;
 import com.hafood.sistema.domain.carta.Carta;
 import com.hafood.sistema.domain.estructura.Personal;
 import com.hafood.sistema.domain.estructura.Sede;
@@ -78,4 +79,8 @@ public class Cuenta {
     @Column(name = "descuento_total", precision = 12, scale = 2)
     @Builder.Default
     private BigDecimal descuentoTotal = BigDecimal.ZERO;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "caja_sesion_id")
+    private CajaSesion cajaSesion;
 }

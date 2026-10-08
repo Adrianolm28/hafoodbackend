@@ -20,12 +20,15 @@ public interface CuentaLineaRepository extends JpaRepository<CuentaLinea, Long> 
     Optional<CuentaLinea> findByIdAndCuentaId(Long id, Long cuentaId);
 
     @Query("select l from CuentaLinea l join fetch l.cuenta c join fetch c.mozo left join fetch l.comanda "
-            + "where c.sede.id = :sedeId and l.tipo = :tipo and l.estado in :estados "
-            + "and c.estado in :estadosCuenta order by l.enviadaEn, l.id")
+            + "where c.sede.id = :sedeId and l.tipo = :tipo and ("
+            + "(l.estado in :estados and c.estado in :estadosCuenta) "
+            + "or (l.estado = :anulada and l.enviadaEn is not null and l.anulacionVista = false)) "
+            + "order by l.enviadaEn, l.id")
     List<CuentaLinea> findParaEstacion(@Param("sedeId") Long sedeId,
                                        @Param("tipo") TipoCategoria tipo,
                                        @Param("estados") Collection<EstadoLinea> estados,
-                                       @Param("estadosCuenta") Collection<EstadoCuenta> estadosCuenta);
+                                       @Param("estadosCuenta") Collection<EstadoCuenta> estadosCuenta,
+                                       @Param("anulada") EstadoLinea anulada);
 
     @Query("select l.cuenta.id, count(l) from CuentaLinea l "
             + "where l.cuenta.sede.id = :sedeId and l.estado = :estado group by l.cuenta.id")

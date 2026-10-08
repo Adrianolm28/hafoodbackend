@@ -20,6 +20,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -171,5 +172,47 @@ public class InventarioService {
 
     private ResponseStatusException invalido(String mensaje) {
         return new ResponseStatusException(HttpStatus.BAD_REQUEST, mensaje);
+    }
+
+    public record ResultadoSalida(MovimientoInsumo movimiento, BigDecimal faltante) {
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public ResultadoSalida salidaPermitiendoFaltante(Insumo insumo, Ubicacion ubicacion, Usuario usuario,
+                                                     BigDecimal cantidad, TipoMovimiento tipo,
+                                                     String motivo, String referencia) {
+        StockUbicacion stock = bloquearOCrear(insumo, ubicacion);
+        BigDecimal anterior = stock.getCantidadActual();
+        BigDecimal faltante = cantidad.subtract(anterior.max(BigDecimal.ZERO)).max(BigDecimal.ZERO);
+        BigDecimal nuevoStock = anterior.subtract(cantidad);
+
+        stock.setCantidadActual(nuevoStock);
+        stockUbicacionRepository.save(stock);
+
+        MovimientoInsumo movimiento =
+                guardarMovimiento(insumo, ubicacion, usuario, tipo, cantidad, nuevoStock, motivo, referencia);
+
+        return new ResultadoSalida(movimiento, faltante);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public MovimientoInsumo entradaSinValidar(Insumo insumo, Ubicacion ubicacion, Usuario usuario,
+                                              BigDecimal cantidad, TipoMovimiento tipo,
+                                              String motivo, String referencia) {
+        StockUbicacion stock = bloquearOCrear(insumo, ubicacion);
+        BigDecimal nuevoStock = stock.getCantidadActual().add(cantidad);
+
+        stock.setCantidadActual(nuevoStock);
+        stockUbicacionRepository.save(stock);
+
+        return guardarMovimiento(insumo, ubicacion, usuario, tipo, cantidad, nuevoStock, motivo, referencia);
+    }
+
+    private StockUbicacion bloquearOCrear(Insumo insumo, Ubicacion ubicacion) {
+        stockUbicacionRepository.crearSiNoExiste(insumo.getId(), ubicacion.getId());
+
+        return stockUbicacionRepository.findForUpdate(insumo.getId(), ubicacion.getId())
+                .orElseThrow(() -> invalido("No se pudo preparar el stock de " + insumo.getNombre()
+                        + " en " + ubicacion.getNombre()));
     }
 }

@@ -40,7 +40,9 @@ public final class CuentaMapper {
                                 f.getMesa().getSeccion().getNombre()))
                         .toList(),
                 resultado.lineas().stream().map(CuentaMapper::toLineaDTO).toList(),
-                resultado.descuentos().stream().map(CuentaMapper::toDescuentoDTO).toList()
+                resultado.descuentos().stream().map(CuentaMapper::toDescuentoDTO).toList(),
+                cuenta.getCajaSesion() == null ? null : cuenta.getCajaSesion().getId(),
+                cuenta.getCajaSesion() == null ? null : cuenta.getCajaSesion().getCaja().getNombre()
         );
     }
 

@@ -4,6 +4,7 @@ import com.hafood.sistema.constant.AccionAuditoria;
 import com.hafood.sistema.constant.EstadoCuenta;
 import com.hafood.sistema.constant.EstadoLinea;
 import com.hafood.sistema.constant.TipoPersonal;
+import com.hafood.sistema.domain.caja.CajaSesion;
 import com.hafood.sistema.domain.carta.Carta;
 import com.hafood.sistema.domain.estructura.Mesa;
 import com.hafood.sistema.domain.estructura.Personal;
@@ -59,6 +60,7 @@ public class CuentaService {
     private final AuditoriaService auditoriaService;
     private final CuentaCalculoService calculoService;
     private final CuentaDescuentoRepository cuentaDescuentoRepository;
+    private final CajaSesionService cajaSesionService;
 
     @Transactional(readOnly = true)
     public CuentaDTO obtener(Long id, Usuario actor) {
@@ -90,6 +92,8 @@ public class CuentaService {
             throw conflicto("La carta está inactiva");
         }
 
+        CajaSesion cajaSesion = cajaSesionService.exigirSesionParaSeccion(mesa.getSeccion());
+
         Personal mozo = buscarMozo(request.mozoId(), sedeId);
         Usuario usuario = usuarioRepository.getReferenceById(actor.getId());
         Instant ahora = Instant.now();
@@ -101,13 +105,15 @@ public class CuentaService {
                 .abiertaPor(usuario)
                 .comensales(request.comensales())
                 .nota(limpiar(request.nota()))
+                .cajaSesion(cajaSesion)
                 .build());
 
         abrirFila(cuenta, mesa, usuario, ahora);
 
         auditoriaService.registrar(actor, sedeId, cuenta.getId(), AccionAuditoria.CUENTA_ABIERTA, null,
                 "mesa=" + mesa.getNombre() + ";mozo=" + mozo.getCodigo() + " " + mozo.getNombre()
-                        + ";carta=" + carta.getNombre(), null);
+                        + ";carta=" + carta.getNombre()
+                        + ";caja=" + cajaSesion.getCaja().getNombre(), null);
 
         return responder(cuenta);
     }
