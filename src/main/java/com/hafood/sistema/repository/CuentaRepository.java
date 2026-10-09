@@ -25,4 +25,11 @@ public interface CuentaRepository extends JpaRepository<Cuenta, Long> {
     @Query("select c.id from Cuenta c where c.cajaSesion.id = :sesionId and c.estado in :estados order by c.id")
     List<Long> findIdsByCajaSesionIdAndEstadoIn(@Param("sesionId") Long sesionId,
                                                 @Param("estados") Collection<EstadoCuenta> estados);
+
+    @Query("select c.cajaSesion.id from Cuenta c where c.id = :id")
+    Optional<Long> findCajaSesionIdById(@Param("id") Long id);
+
+    List<Cuenta> findByCuentaPadreIdOrderById(Long cuentaPadreId);
+
+    boolean existsByCuentaPadreIdAndEstadoIn(Long cuentaPadreId, Collection<EstadoCuenta> estados);
 }

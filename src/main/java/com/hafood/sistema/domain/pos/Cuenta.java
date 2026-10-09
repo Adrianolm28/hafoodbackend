@@ -13,7 +13,10 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
-@Table(name = "cuentas", indexes = @Index(name = "idx_cuentas_sede_estado", columnList = "sede_id, estado"))
+@Table(name = "cuentas", indexes = {
+        @Index(name = "idx_cuentas_sede_estado", columnList = "sede_id, estado"),
+        @Index(name = "idx_cuentas_padre", columnList = "cuenta_padre_id")
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -83,4 +86,14 @@ public class Cuenta {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "caja_sesion_id")
     private CajaSesion cajaSesion;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cuenta_padre_id")
+    private Cuenta cuentaPadre;
+
+    @Column(name = "total_precuenta", precision = 12, scale = 2)
+    private BigDecimal totalPrecuenta;
+
+    @Column(name = "precuenta_en")
+    private Instant precuentaEn;
 }

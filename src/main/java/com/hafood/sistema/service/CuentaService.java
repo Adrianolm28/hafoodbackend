@@ -13,18 +13,12 @@ import com.hafood.sistema.domain.user.Usuario;
 import com.hafood.sistema.dto.CuentaDTO;
 import com.hafood.sistema.dto.request.CuentaRequests;
 import com.hafood.sistema.mapper.CuentaMapper;
-import com.hafood.sistema.repository.CartaRepository;
-import com.hafood.sistema.repository.CuentaLineaRepository;
-import com.hafood.sistema.repository.CuentaMesaRepository;
-import com.hafood.sistema.repository.CuentaRepository;
-import com.hafood.sistema.repository.MesaRepository;
-import com.hafood.sistema.repository.OperacionProcesadaRepository;
-import com.hafood.sistema.repository.PersonalRepository;
-import com.hafood.sistema.repository.UsuarioRepository;
+import com.hafood.sistema.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -36,7 +30,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import com.hafood.sistema.repository.CuentaDescuentoRepository;
+
 import com.hafood.sistema.domain.pos.CuentaDescuento;
 @Service
 @RequiredArgsConstructor
@@ -61,6 +55,8 @@ public class CuentaService {
     private final CuentaCalculoService calculoService;
     private final CuentaDescuentoRepository cuentaDescuentoRepository;
     private final CajaSesionService cajaSesionService;
+    private final CuentaPagoRepository cuentaPagoRepository;
+    private final CuentaPropinaRepository cuentaPropinaRepository;
 
     @Transactional(readOnly = true)
     public CuentaDTO obtener(Long id, Usuario actor) {
@@ -302,6 +298,7 @@ public class CuentaService {
     public CuentaDTO cambiarMesa(Long cuentaId, CuentaRequests.CambiarMesa request, Usuario actor) {
         Cuenta cuenta = bloquear(cuentaId, actor);
         exigirViva(cuenta);
+        exigirPrincipal(cuenta);
 
         if (request.mesaOrigenId().equals(request.mesaDestinoId())) {
             throw invalida("La mesa de destino debe ser distinta a la de origen");
@@ -344,6 +341,7 @@ public class CuentaService {
     public CuentaDTO juntarMesa(Long cuentaId, CuentaRequests.JuntarMesa request, Usuario actor) {
         Cuenta cuenta = bloquear(cuentaId, actor);
         exigirViva(cuenta);
+        exigirPrincipal(cuenta);
 
         Mesa mesa = mesaRepository.findByIdForUpdate(request.mesaId())
                 .orElseThrow(() -> noExiste("La mesa no existe"));
@@ -449,17 +447,18 @@ public class CuentaService {
 
     public CuentaDTO responder(Cuenta cuenta) {
         CuentaCalculoService.Resultado resultado = calculoService.recalcular(cuenta);
-        List<CuentaMesa> mesas = cuentaMesaRepository.findVigentesByCuentaId(cuenta.getId());
-        return CuentaMapper.toDTO(cuenta, mesas, resultado);
+        Long principalId = cuenta.getCuentaPadre() == null ? cuenta.getId() : cuenta.getCuentaPadre().getId();
+        List<CuentaMesa> mesas = cuentaMesaRepository.findVigentesByCuentaId(principalId);
+        List<CuentaPago> pagos = cuentaPagoRepository.findByCuentaId(cuenta.getId());
+        List<CuentaPropina> propinas = cuentaPropinaRepository.findByCuentaId(cuenta.getId());
+        List<CuentaDTO.Hija> hijas = cuentaRepository.findByCuentaPadreIdOrderById(cuenta.getId()).stream()
+                .filter(h -> h.getEstado() != EstadoCuenta.FUSIONADA && h.getEstado() != EstadoCuenta.ANULADA)
+                .map(h -> new CuentaDTO.Hija(h.getId(), h.getEstado(), h.getTotal(),
+                        cuentaPagoRepository.totalAplicado(h.getId())))
+                .toList();
+        return CuentaMapper.toDTO(cuenta, mesas, resultado, pagos, propinas, hijas);
     }
 
-    private static BigDecimal sumar(List<CuentaLinea> lineas) {
-        return lineas.stream()
-                .filter(l -> l.getEstado() != EstadoLinea.ANULADA)
-                .map(l -> l.getPrecioUnitario().multiply(BigDecimal.valueOf(l.getCantidad())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .setScale(2, RoundingMode.HALF_UP);
-    }
 
     private void abrirFila(Cuenta cuenta, Mesa mesa, Usuario usuario, Instant ahora) {
         try {
@@ -472,6 +471,22 @@ public class CuentaService {
                     .build());
         } catch (DataIntegrityViolationException e) {
             throw conflicto("La mesa ya tiene una cuenta abierta");
+        }
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void liberarMesas(Cuenta cuenta, Instant ahora) {
+        List<CuentaMesa> filas = cuentaMesaRepository.findVigentesByCuentaId(cuenta.getId());
+        filas.forEach(f -> {
+            cerrarFila(f, ahora);
+            liberarSiTemporal(f.getMesa());
+        });
+        cuentaMesaRepository.saveAllAndFlush(filas);
+    }
+
+    private void exigirPrincipal(Cuenta cuenta) {
+        if (cuenta.getCuentaPadre() != null) {
+            throw conflicto("Esta cuenta separada usa la mesa de la cuenta principal");
         }
     }
 

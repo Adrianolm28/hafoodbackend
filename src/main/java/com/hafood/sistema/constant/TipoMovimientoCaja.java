@@ -6,7 +6,8 @@ public enum TipoMovimientoCaja {
     COBRO(1),
     PROPINA(1),
     EGRESO(-1),
-    DEVOLUCION(-1);
+    DEVOLUCION(-1),
+    VUELTO(-1);
 
     private final int signo;
 

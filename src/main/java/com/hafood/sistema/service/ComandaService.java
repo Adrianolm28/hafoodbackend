@@ -162,6 +162,10 @@ public class ComandaService {
                 linea.getNombre() + " estado=" + anterior, linea.getNombre() + " estado=" + nuevo, null);
     }
 
+    private Long mesaCuentaId(Cuenta cuenta) {
+        return cuenta.getCuentaPadre() == null ? cuenta.getId() : cuenta.getCuentaPadre().getId();
+    }
+
     @Transactional(readOnly = true)
     public List<EstacionLineaDTO> listar(EstacionComanda estacion, Long sedeId, Usuario actor) {
         sedeAccesoService.exigirAcceso(actor, sedeId);
@@ -180,7 +184,7 @@ public class ComandaService {
                         l.getId(),
                         l.getComanda() == null ? null : l.getComanda().getId(),
                         l.getCuenta().getId(),
-                        mesas.getOrDefault(l.getCuenta().getId(), ""),
+                        mesas.getOrDefault(mesaCuentaId(l.getCuenta()), ""),
                         l.getCuenta().getMozo().getCodigo() + " " + l.getCuenta().getMozo().getNombre(),
                         l.getNombre(),
                         l.getCantidad(),

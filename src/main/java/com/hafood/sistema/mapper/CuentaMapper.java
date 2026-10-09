@@ -4,6 +4,8 @@ import com.hafood.sistema.domain.pos.Cuenta;
 import com.hafood.sistema.domain.pos.CuentaDescuento;
 import com.hafood.sistema.domain.pos.CuentaLinea;
 import com.hafood.sistema.domain.pos.CuentaMesa;
+import com.hafood.sistema.domain.pos.CuentaPago;
+import com.hafood.sistema.domain.pos.CuentaPropina;
 import com.hafood.sistema.dto.CuentaDTO;
 import com.hafood.sistema.service.CuentaCalculoService;
 
@@ -16,7 +18,19 @@ public final class CuentaMapper {
     private CuentaMapper() {
     }
 
-    public static CuentaDTO toDTO(Cuenta cuenta, List<CuentaMesa> mesas, CuentaCalculoService.Resultado resultado) {
+    public static CuentaDTO toDTO(Cuenta cuenta, List<CuentaMesa> mesas, CuentaCalculoService.Resultado resultado,
+                                  List<CuentaPago> pagos, List<CuentaPropina> propinas, List<CuentaDTO.Hija> hijas) {
+        BigDecimal pagado = pagos.stream()
+                .map(CuentaPago::getAplicadoPen)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal base = cuenta.getTotalPrecuenta() != null ? cuenta.getTotalPrecuenta() : cuenta.getTotal();
+        BigDecimal pendiente = base.subtract(pagado).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal propinaTotal = propinas.stream()
+                .map(CuentaPropina::getEquivalentePen)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
         return new CuentaDTO(
                 cuenta.getId(),
                 cuenta.getSede().getId(),
@@ -42,7 +56,14 @@ public final class CuentaMapper {
                 resultado.lineas().stream().map(CuentaMapper::toLineaDTO).toList(),
                 resultado.descuentos().stream().map(CuentaMapper::toDescuentoDTO).toList(),
                 cuenta.getCajaSesion() == null ? null : cuenta.getCajaSesion().getId(),
-                cuenta.getCajaSesion() == null ? null : cuenta.getCajaSesion().getCaja().getNombre()
+                cuenta.getCajaSesion() == null ? null : cuenta.getCajaSesion().getCaja().getNombre(),
+                pagado,
+                pendiente,
+                propinaTotal,
+                cuenta.getCuentaPadre() == null ? null : cuenta.getCuentaPadre().getId(),
+                hijas,
+                pagos.stream().map(CuentaMapper::toPagoDTO).toList(),
+                propinas.stream().map(CuentaMapper::toPropinaDTO).toList()
         );
     }
 
@@ -85,6 +106,38 @@ public final class CuentaMapper {
                 descuento.getAutorizadoPor().getUsername(),
                 descuento.isAutoAutorizado(),
                 descuento.getCreadoEn()
+        );
+    }
+
+    private static CuentaDTO.Pago toPagoDTO(CuentaPago pago) {
+        return new CuentaDTO.Pago(
+                pago.getId(),
+                pago.getMetodo(),
+                pago.getMarcaTarjeta(),
+                pago.getMoneda(),
+                pago.getRecibido(),
+                pago.getTipoCambio(),
+                pago.getAplicadoPen(),
+                pago.getVueltoMonto(),
+                pago.getVueltoMoneda(),
+                pago.getVueltoPen(),
+                pago.getReferencia(),
+                pago.getRegistradoPor().getUsername(),
+                pago.getCreadoEn()
+        );
+    }
+
+    private static CuentaDTO.Propina toPropinaDTO(CuentaPropina propina) {
+        return new CuentaDTO.Propina(
+                propina.getId(),
+                propina.getMetodo(),
+                propina.getMarcaTarjeta(),
+                propina.getMoneda(),
+                propina.getMonto(),
+                propina.getEquivalentePen(),
+                propina.getPorcentaje(),
+                propina.getRegistradoPor().getUsername(),
+                propina.getCreadoEn()
         );
     }
 }

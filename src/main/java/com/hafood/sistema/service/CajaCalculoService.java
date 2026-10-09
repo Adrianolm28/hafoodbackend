@@ -28,7 +28,8 @@ public class CajaCalculoService {
     }
 
     public record Saldo(Clave clave, BigDecimal apertura, BigDecimal cobros, BigDecimal propinas,
-                        BigDecimal ingresos, BigDecimal egresos, BigDecimal devoluciones, BigDecimal esperado) {
+                        BigDecimal ingresos, BigDecimal egresos, BigDecimal devoluciones,
+                        BigDecimal vueltos, BigDecimal esperado) {
     }
 
     public record Contado(BigDecimal total, String detalle) {
@@ -190,6 +191,7 @@ public class CajaCalculoService {
                 valor(valores, TipoMovimientoCaja.INGRESO),
                 valor(valores, TipoMovimientoCaja.EGRESO),
                 valor(valores, TipoMovimientoCaja.DEVOLUCION),
+                valor(valores, TipoMovimientoCaja.VUELTO),
                 esperado.setScale(2, RoundingMode.HALF_UP));
     }
 

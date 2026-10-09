@@ -2,6 +2,9 @@ package com.hafood.sistema.dto;
 
 import com.hafood.sistema.constant.EstadoCuenta;
 import com.hafood.sistema.constant.EstadoLinea;
+import com.hafood.sistema.constant.MarcaTarjeta;
+import com.hafood.sistema.constant.MetodoPago;
+import com.hafood.sistema.constant.Moneda;
 import com.hafood.sistema.constant.TipoCategoria;
 import com.hafood.sistema.constant.TipoDescuento;
 
@@ -29,7 +32,14 @@ public record CuentaDTO(
         List<Linea> lineas,
         List<Descuento> descuentos,
         Long cajaSesionId,
-        String cajaNombre
+        String cajaNombre,
+        BigDecimal pagado,
+        BigDecimal pendiente,
+        BigDecimal propinaTotal,
+        Long cuentaPadreId,
+        List<Hija> hijas,
+        List<Pago> pagos,
+        List<Propina> propinas
 ) {
 
     public record MesaRef(Long id, String nombre, String seccionNombre) {
@@ -71,6 +81,39 @@ public record CuentaDTO(
             String ejecutadoPorNombre,
             String autorizadoPorNombre,
             boolean autoAutorizado,
+            Instant creadoEn
+    ) {
+    }
+
+    public record Hija(Long id, EstadoCuenta estado, BigDecimal total, BigDecimal pagado) {
+    }
+
+    public record Pago(
+            Long id,
+            MetodoPago metodo,
+            MarcaTarjeta marca,
+            Moneda moneda,
+            BigDecimal recibido,
+            BigDecimal tipoCambio,
+            BigDecimal aplicadoPen,
+            BigDecimal vueltoMonto,
+            Moneda vueltoMoneda,
+            BigDecimal vueltoPen,
+            String referencia,
+            String registradoPorNombre,
+            Instant creadoEn
+    ) {
+    }
+
+    public record Propina(
+            Long id,
+            MetodoPago metodo,
+            MarcaTarjeta marca,
+            Moneda moneda,
+            BigDecimal monto,
+            BigDecimal equivalentePen,
+            BigDecimal porcentaje,
+            String registradoPorNombre,
             Instant creadoEn
     ) {
     }

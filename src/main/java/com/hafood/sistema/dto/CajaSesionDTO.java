@@ -29,6 +29,7 @@ public record CajaSesionDTO(
             BigDecimal ingresos,
             BigDecimal egresos,
             BigDecimal devoluciones,
+            BigDecimal vueltos,
             BigDecimal esperado
     ) {
     }

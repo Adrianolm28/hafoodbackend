@@ -60,7 +60,7 @@ public class CajaDetalleService {
                 ? calculoService.saldos(id).stream()
                 .map(s -> new CajaSesionDTO.Saldo(s.clave().metodo(), s.clave().marca(), s.clave().moneda(),
                         s.apertura(), s.cobros(), s.propinas(), s.ingresos(), s.egresos(), s.devoluciones(),
-                        s.esperado()))
+                        s.vueltos(), s.esperado()))
                 .toList()
                 : null;
 
