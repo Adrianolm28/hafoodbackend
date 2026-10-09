@@ -25,7 +25,7 @@ public class EventoAuditoria {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "sede_id", nullable = false)
+    @Column(name = "sede_id")
     private Long sedeId;
 
     @Column(name = "cuenta_id")

@@ -1,12 +1,14 @@
 package com.hafood.sistema.domain.sunat;
 
 import com.hafood.sistema.constant.AmbienteSunat;
+import com.hafood.sistema.constant.RegimenTributario;
 import com.hafood.sistema.domain.user.Usuario;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 
@@ -59,6 +61,13 @@ public class ConfiguracionSunat {
 
     @Column(nullable = false)
     private boolean activa = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 10)
+    private RegimenTributario regimen;
+
+    @Column(name = "umbral_boleta_sin_documento", precision = 12, scale = 2)
+    private BigDecimal umbralBoletaSinDocumento;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "actualizado_por_id")

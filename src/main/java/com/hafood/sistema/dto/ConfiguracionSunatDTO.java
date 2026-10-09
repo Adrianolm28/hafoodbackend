@@ -1,7 +1,9 @@
 package com.hafood.sistema.dto;
 
 import com.hafood.sistema.constant.AmbienteSunat;
+import com.hafood.sistema.constant.RegimenTributario;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public record ConfiguracionSunatDTO(
@@ -15,6 +17,8 @@ public record ConfiguracionSunatDTO(
         String nombreCertificado,
         LocalDate certificadoVence,
         AmbienteSunat ambiente,
-        boolean activa
+        boolean activa,
+        RegimenTributario regimen,
+        BigDecimal umbralBoletaSinDocumento
 ) {
 }

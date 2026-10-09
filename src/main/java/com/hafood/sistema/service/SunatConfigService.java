@@ -33,6 +33,8 @@ import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Optional;
+import com.hafood.sistema.constant.TipoImpuesto;
+import com.hafood.sistema.repository.TasaImpuestoRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -47,7 +49,7 @@ public class SunatConfigService {
     private final UsuarioRepository usuarioRepository;
     private final CifradoService cifradoService;
     private final AuditoriaService auditoriaService;
-
+    private final TasaImpuestoRepository tasaRepository;
     @Transactional(readOnly = true)
     public Optional<ConfiguracionSunatDTO> obtener() {
         return configRepository.findByClaveUnica(ConfiguracionSunat.CLAVE_UNICA).map(this::aDto);
@@ -158,6 +160,13 @@ public class SunatConfigService {
             } else if (config.getCertificadoVence() != null && config.getCertificadoVence().isBefore(LocalDate.now(LIMA))) {
                 faltantes.add("certificado vigente");
             }
+
+            if (config.getRegimen() == null) {
+                faltantes.add("régimen tributario");
+            } else if (tasaRepository.findVigentes(config.getRegimen(), TipoImpuesto.IGV, LocalDate.now(LIMA)).size() != 1) {
+                faltantes.add("tasa de IGV vigente");
+            }
+
             if (!faltantes.isEmpty()) {
                 throw conflicto("Falta completar: " + String.join(", ", faltantes));
             }
@@ -193,7 +202,8 @@ public class SunatConfigService {
                 Key llave = almacen.getKey(nombre, clave);
                 Certificate certificado = almacen.getCertificate(nombre);
 
-                if (llave instanceof PrivateKey && certificado instanceof X509Certificate x509) {
+                if (llave instanceof PrivateKey && "RSA".equals(llave.getAlgorithm())
+                        && certificado instanceof X509Certificate x509) {
                     x509.checkValidity();
                     return x509.getNotAfter().toInstant().atZone(LIMA).toLocalDate();
                 }
@@ -256,7 +266,8 @@ public class SunatConfigService {
                 + ";certificado=" + (c.getCertificadoCifrado() == null ? "no" : c.getNombreCertificado())
                 + ";vence=" + c.getCertificadoVence()
                 + ";ambiente=" + c.getAmbiente()
-                + ";activa=" + c.isActiva();
+                + ";activa=" + c.isActiva()
+                + ";regimen=" + c.getRegimen();
     }
 
     private ConfiguracionSunatDTO aDto(ConfiguracionSunat c) {
@@ -271,7 +282,9 @@ public class SunatConfigService {
                 c.getNombreCertificado(),
                 c.getCertificadoVence(),
                 c.getAmbiente(),
-                c.isActiva());
+                c.isActiva(),
+                c.getRegimen(),
+                c.getUmbralBoletaSinDocumento());
     }
 
     private ResponseStatusException conflicto(String mensaje) {
