@@ -20,5 +20,12 @@ public record ComprobanteResumenDTO(
         String clienteNombre,
         TipoDocumentoCliente clienteTipoDocumento,
         String clienteNumeroDocumento,
-        BigDecimal total) {
+        BigDecimal total,
+        boolean firmado,
+        boolean tieneCdr,
+        String mensajeSunat,
+        String errorPreparacion,
+        int intentos,
+        LocalDate venceEnvio,
+        long diasParaVencer) {
 }

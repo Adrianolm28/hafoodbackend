@@ -57,6 +57,15 @@ public class SecurityConfig {
                         .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE")
                         .requestMatchers("/api/v1/sunat/config/**", "/api/v1/sunat/sedes/**")
                         .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/pos/comprobantes/*/enviar",
+                                "/api/v1/pos/comprobantes/*/xml/regenerar")
+                        .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE")
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/pos/comprobantes/enviar-pendientes",
+                                "/api/v1/pos/comprobantes/*/enviar",
+                                "/api/v1/pos/comprobantes/*/xml/regenerar")
+                        .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE")
                         .requestMatchers("/api/v1/pos/**")
                         .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE", "CAJERO")
 

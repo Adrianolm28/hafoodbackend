@@ -4,12 +4,15 @@ import com.hafood.sistema.constant.EstadoSunat;
 import com.hafood.sistema.constant.TipoComprobante;
 import com.hafood.sistema.domain.user.Usuario;
 import com.hafood.sistema.dto.ComprobanteResumenDTO;
+import com.hafood.sistema.dto.EnvioMasivoDTO;
 import com.hafood.sistema.service.ComprobanteListadoService;
+import com.hafood.sistema.service.SunatEnvioService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,6 +26,7 @@ import java.util.List;
 public class ComprobanteListadoController {
 
     private final ComprobanteListadoService listadoService;
+    private final SunatEnvioService envioService;
 
     @GetMapping
     public ResponseEntity<List<ComprobanteResumenDTO>> listar(
@@ -33,5 +37,11 @@ public class ComprobanteListadoController {
             @RequestParam(required = false) TipoComprobante tipo,
             @AuthenticationPrincipal Usuario actor) {
         return ResponseEntity.ok(listadoService.listar(sedeId, desde, hasta, estado, tipo, actor));
+    }
+
+    @PostMapping("/enviar-pendientes")
+    public ResponseEntity<EnvioMasivoDTO> enviarPendientes(@RequestParam Long sedeId,
+                                                           @AuthenticationPrincipal Usuario actor) {
+        return ResponseEntity.ok(envioService.enviarPendientes(sedeId, actor));
     }
 }

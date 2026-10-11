@@ -57,6 +57,19 @@ public class ComprobanteArchivoService {
         return new Descarga(archivo.getNombreArchivo(), archivo.getXml());
     }
 
+    @Transactional(readOnly = true)
+    public Descarga descargarCdr(Long comprobanteId, Usuario actor) {
+        buscar(comprobanteId, actor);
+        ComprobanteArchivo archivo = archivoRepository.findByComprobanteId(comprobanteId)
+                .orElseThrow(() -> conflicto("Este comprobante aún no tiene constancia de SUNAT"));
+
+        if (archivo.getCdr() == null) {
+            throw conflicto("Este comprobante aún no tiene constancia de SUNAT");
+        }
+
+        return new Descarga(archivo.getNombreCdr(), archivo.getCdr());
+    }
+
     @Transactional
     public void regenerarXml(Long comprobanteId, Usuario actor) {
         Comprobante comprobante = buscar(comprobanteId, actor);

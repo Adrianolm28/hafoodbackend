@@ -44,6 +44,24 @@ public class ComprobanteArchivo {
     @Column(name = "firmado_en")
     private Instant firmadoEn;
 
+    @Column(name = "cdr", columnDefinition = "bytea")
+    private byte[] cdr;
+
+    @Column(name = "nombre_cdr", length = 70)
+    private String nombreCdr;
+
+    @Column(name = "codigo_respuesta", length = 10)
+    private String codigoRespuesta;
+
+    @Column(name = "mensaje_respuesta", length = 500)
+    private String mensajeRespuesta;
+
+    @Column(name = "enviado_en")
+    private Instant enviadoEn;
+
+    @Column(name = "intentos")
+    private Integer intentos;
+
     @Version
     private Long version;
 }
