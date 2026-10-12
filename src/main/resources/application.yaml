@@ -26,6 +26,15 @@ app:
 hafood:
   seguridad:
     clave-secretos: ${HAFOOD_CLAVE_SECRETOS}
+  sunat:
+    plazo-factura-dias: 3
+    plazo-boleta-dias: 7
+    envio-pausa-ms: 1000
+    automatico-activo: true
+    automatico-inicio-ms: 60000
+    automatico-intervalo-ms: 300000
+    automatico-max-por-ciclo: 60
+    automatico-max-intentos: 8
 
 logging:
   level:

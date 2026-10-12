@@ -30,6 +30,7 @@ public class SecurityConfig {
             UserDetailsService userDetailsService
     ) throws Exception {
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtService, userDetailsService);
+        String[] rolesSala = {"SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE", "CAJERO", "MOZO"};
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -58,14 +59,31 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/sunat/config/**", "/api/v1/sunat/sedes/**")
                         .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR")
                         .requestMatchers(HttpMethod.POST,
-                                "/api/v1/pos/comprobantes/*/enviar",
-                                "/api/v1/pos/comprobantes/*/xml/regenerar")
-                        .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE")
-                        .requestMatchers(HttpMethod.POST,
                                 "/api/v1/pos/comprobantes/enviar-pendientes",
                                 "/api/v1/pos/comprobantes/*/enviar",
                                 "/api/v1/pos/comprobantes/*/xml/regenerar")
                         .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE")
+
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/v1/pos/cartas",
+                                "/api/v1/pos/cartas/*/menu",
+                                "/api/v1/pos/cuentas/*",
+                                "/api/v1/pos/cuentas/*/desglose")
+                        .hasAnyRole(rolesSala)
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/pos/cuentas",
+                                "/api/v1/pos/cuentas/*/lineas",
+                                "/api/v1/pos/cuentas/*/lineas/*/anular",
+                                "/api/v1/pos/cuentas/*/cambiar-mesa",
+                                "/api/v1/pos/cuentas/*/juntar-mesa",
+                                "/api/v1/pos/cuentas/*/comandas",
+                                "/api/v1/pos/cuentas/*/precuenta")
+                        .hasAnyRole(rolesSala)
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/pos/cuentas/*/lineas/*")
+                        .hasAnyRole(rolesSala)
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/pos/cuentas/*/lineas/*")
+                        .hasAnyRole(rolesSala)
+
                         .requestMatchers("/api/v1/pos/**")
                         .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE", "CAJERO")
 
@@ -76,9 +94,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/mesas/**")
                         .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE")
                         .requestMatchers("/api/v1/personal/**")
-
-
-
                         .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE")
                         .requestMatchers(HttpMethod.GET,
                                 "/api/sedes/**",

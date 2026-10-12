@@ -1,16 +1,20 @@
 package com.hafood.sistema.service;
 
+import com.hafood.sistema.config.SunatProperties;
 import com.hafood.sistema.constant.TipoComprobante;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
-public final class PlazosEnvio {
+@Component
+@RequiredArgsConstructor
+public class PlazosEnvio {
 
-    private static final int DIAS_FACTURA = 3;
-    private static final int DIAS_BOLETA = 7;
+    private final SunatProperties propiedades;
 
-    private PlazosEnvio() {
-    }
-
-    public static int dias(TipoComprobante tipo) {
-        return tipo == TipoComprobante.FACTURA ? DIAS_FACTURA : DIAS_BOLETA;
+    public int dias(TipoComprobante tipo) {
+        int dias = tipo == TipoComprobante.FACTURA
+                ? propiedades.getPlazoFacturaDias()
+                : propiedades.getPlazoBoletaDias();
+        return Math.max(1, dias);
     }
 }

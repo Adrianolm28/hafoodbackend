@@ -40,6 +40,7 @@ public class ComprobanteListadoService {
     private final ComprobanteRepository comprobanteRepository;
     private final ComprobanteArchivoRepository archivoRepository;
     private final SedeAccesoService sedeAccesoService;
+    private final PlazosEnvio plazos;
 
     @Transactional(readOnly = true)
     public List<ComprobanteResumenDTO> listar(Long sedeId, LocalDate desde, LocalDate hasta,
@@ -95,7 +96,7 @@ public class ComprobanteListadoService {
     }
 
     private ComprobanteResumenDTO resumen(Comprobante c, EstadoArchivo a, LocalDate hoy) {
-        LocalDate vence = c.getFechaEmision().plusDays(PlazosEnvio.dias(c.getTipo()));
+        LocalDate vence = c.getFechaEmision().plusDays(plazos.dias(c.getTipo()));
         String mensaje = null;
 
         if (a != null && a.mensaje() != null) {

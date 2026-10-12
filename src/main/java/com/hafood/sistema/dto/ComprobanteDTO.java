@@ -1,5 +1,6 @@
 package com.hafood.sistema.dto;
 
+import com.hafood.sistema.constant.AmbienteSunat;
 import com.hafood.sistema.constant.EstadoSunat;
 import com.hafood.sistema.constant.RegimenTributario;
 import com.hafood.sistema.constant.TipoComprobante;
@@ -32,6 +33,15 @@ public record ComprobanteDTO(
         BigDecimal igv,
         BigDecimal ipm,
         BigDecimal total,
+        AmbienteSunat ambiente,
+        String nombreComercialEmisor,
+        String direccionFiscal,
+        boolean firmado,
+        boolean tieneCdr,
+        String mensajeSunat,
+        String errorPreparacion,
+        int intentos,
+        String hashFirma,
         List<Linea> lineas) {
 
     public record Cliente(

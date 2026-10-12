@@ -42,7 +42,8 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-
+import com.hafood.sistema.domain.sunat.ComprobanteArchivo;
+import com.hafood.sistema.repository.ComprobanteArchivoRepository;
 @Service
 @RequiredArgsConstructor
 public class ComprobanteService {
@@ -68,7 +69,7 @@ public class ComprobanteService {
     private final SedeAccesoService sedeAccesoService;
     private final AuditoriaService auditoriaService;
     private final ComprobanteArchivoService archivoService;
-
+    private final ComprobanteArchivoRepository archivoRepository;
     @Transactional(readOnly = true)
     public Optional<ComprobanteDTO> obtenerDeCuenta(Long cuentaId, Usuario actor) {
         Long sedeId = cuentaRepository.findSedeIdById(cuentaId)
@@ -308,6 +309,14 @@ public class ComprobanteService {
 
     private ComprobanteDTO armar(Comprobante c, List<ComprobanteLinea> lineas) {
         ComprobanteCliente cl = c.getCliente();
+        ComprobanteArchivo a = archivoRepository.findByComprobanteId(c.getId()).orElse(null);
+        String mensajeSunat = null;
+
+        if (a != null && a.getMensajeRespuesta() != null) {
+            mensajeSunat = a.getCodigoRespuesta() == null
+                    ? a.getMensajeRespuesta()
+                    : a.getCodigoRespuesta() + ": " + a.getMensajeRespuesta();
+        }
 
         return new ComprobanteDTO(
                 c.getId(),
@@ -332,6 +341,15 @@ public class ComprobanteService {
                 c.getIgv(),
                 c.getIpm(),
                 c.getTotal(),
+                c.getAmbiente(),
+                c.getNombreComercialEmisor(),
+                c.getDireccionFiscal(),
+                a != null && a.isFirmado(),
+                a != null && a.getCdr() != null,
+                mensajeSunat,
+                a == null ? null : a.getErrorGeneracion(),
+                a == null || a.getIntentos() == null ? 0 : a.getIntentos(),
+                a == null ? null : a.getHashFirma(),
                 lineas.stream()
                         .map(l -> new ComprobanteDTO.Linea(l.getItem(), l.getDescripcion(), l.getUnidadMedida(),
                                 l.getCantidad(), l.getPrecioUnitario(), l.getDescuento(), l.getTotal(),

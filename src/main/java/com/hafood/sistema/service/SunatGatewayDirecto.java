@@ -10,8 +10,10 @@ import org.springframework.web.client.RestClientException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.xml.sax.helpers.DefaultHandler;
 
 import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -22,13 +24,12 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
-import org.xml.sax.helpers.DefaultHandler;
-import javax.xml.parsers.DocumentBuilder;
 
 @Component
 public class SunatGatewayDirecto implements SunatGateway {
@@ -36,9 +37,18 @@ public class SunatGatewayDirecto implements SunatGateway {
     private static final String NS_SERVICIO = "http://service.sunat.gob.pe";
     private static final String NS_WSSE =
             "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd";
+    private static final String TIPO_CLAVE =
+            "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText";
+    private static final String ACCION_ENVIO = "urn:sendBill";
+    private static final String ACCION_CONSULTA = "urn:getStatusCdr";
+    private static final String ENDPOINT_CONSULTA =
+            "https://e-factura.sunat.gob.pe/ol-it-wsconscpegem/billConsultService";
     private static final int MAX_CDR_BYTES = 2_000_000;
     private static final int LIMITE_MENSAJE = 400;
     private static final Pattern CODIGO = Pattern.compile("(\\d{3,4})\\D*$");
+
+    private record Crudo(int estado, String tipo, String cuerpo) {
+    }
 
     private final RestClient cliente;
 
@@ -56,22 +66,44 @@ public class SunatGatewayDirecto implements SunatGateway {
     public RespuestaSunat enviarComprobante(AmbienteSunat ambiente, Credenciales credenciales,
                                             String nombreBase, byte[] xmlFirmado) {
         String zip = Base64.getEncoder().encodeToString(comprimir(nombreBase + ".xml", xmlFirmado));
-        String sobre = sobre(credenciales, nombreBase + ".zip", zip);
-        record Crudo(int estado, String tipo, String cuerpo) {
+        String cuerpo = "<ser:sendBill><fileName>" + escapar(nombreBase + ".zip") + "</fileName>"
+                + "<contentFile>" + zip + "</contentFile></ser:sendBill>";
+
+        return ejecutar(ambiente.getEndpoint(), ACCION_ENVIO, sobre(credenciales, cuerpo), this::interpretar);
+    }
+
+    @Override
+    public RespuestaSunat consultarConstancia(AmbienteSunat ambiente, Credenciales credenciales,
+                                              String rucEmisor, String tipoComprobante,
+                                              String serie, long correlativo) {
+        if (ambiente != AmbienteSunat.PRODUCCION) {
+            return error("La consulta de constancias solo está disponible en producción");
         }
 
+        String cuerpo = "<ser:getStatusCdr>"
+                + "<rucComprobante>" + escapar(rucEmisor) + "</rucComprobante>"
+                + "<tipoComprobante>" + escapar(tipoComprobante) + "</tipoComprobante>"
+                + "<serieComprobante>" + escapar(serie) + "</serieComprobante>"
+                + "<numeroComprobante>" + correlativo + "</numeroComprobante>"
+                + "</ser:getStatusCdr>";
+
+        return ejecutar(ENDPOINT_CONSULTA, ACCION_CONSULTA, sobre(credenciales, cuerpo), this::interpretarConsulta);
+    }
+
+    private RespuestaSunat ejecutar(String url, String accion, String sobre,
+                                    Function<String, RespuestaSunat> lector) {
         Crudo crudo;
 
         try {
             crudo = cliente.post()
-                    .uri(ambiente.getEndpoint())
+                    .uri(url)
                     .contentType(MediaType.parseMediaType("text/xml; charset=UTF-8"))
-                    .header("SOAPAction", "")
+                    .header("SOAPAction", "\"" + accion + "\"")
                     .body(sobre)
-                    .exchange((peticion, respuesta) -> new Crudo(
-                            respuesta.getStatusCode().value(),
-                            String.valueOf(respuesta.getHeaders().getContentType()),
-                            respuesta.bodyTo(String.class)));
+                    .exchange((peticion, lectura) -> new Crudo(
+                            lectura.getStatusCode().value(),
+                            String.valueOf(lectura.getHeaders().getContentType()),
+                            lectura.bodyTo(String.class)));
         } catch (RestClientException e) {
             String causa = e.getCause() == null ? "" : "/" + e.getCause().getClass().getSimpleName();
             return error("No se pudo conectar con SUNAT (" + e.getClass().getSimpleName() + causa
@@ -84,13 +116,13 @@ public class SunatGatewayDirecto implements SunatGateway {
             return error("SUNAT no devolvió contenido" + detalle);
         }
 
-        RespuestaSunat respuesta = interpretar(crudo.cuerpo());
+        RespuestaSunat leida = lector.apply(crudo.cuerpo());
 
-        if (respuesta.estado() == EstadoSunat.ERROR_ENVIO && respuesta.cdrZip() == null) {
-            return error(respuesta.mensaje() + detalle);
+        if (leida.estado() == EstadoSunat.ERROR_ENVIO && leida.cdrZip() == null && leida.codigo() == null) {
+            return error(leida.mensaje() + detalle);
         }
 
-        return respuesta;
+        return leida;
     }
 
     RespuestaSunat interpretar(String cuerpo) {
@@ -105,10 +137,7 @@ public class SunatGatewayDirecto implements SunatGateway {
         String fallo = texto(documento, "faultcode");
 
         if (fallo != null) {
-            String detalle = recortar(texto(documento, "faultstring"));
-            String codigo = codigoDe(fallo);
-            return new RespuestaSunat(esRechazo(codigo) ? EstadoSunat.RECHAZADO : EstadoSunat.ERROR_ENVIO, codigo,
-                    detalle == null ? "SUNAT no aceptó el comprobante" : detalle, null);
+            return desdeFalla(documento, fallo);
         }
 
         String contenido = texto(documento, "applicationResponse");
@@ -117,6 +146,43 @@ public class SunatGatewayDirecto implements SunatGateway {
             return error("SUNAT respondió sin la constancia de recepción");
         }
 
+        return desdeContenido(contenido);
+    }
+
+    RespuestaSunat interpretarConsulta(String cuerpo) {
+        Document documento;
+
+        try {
+            documento = parsear(cuerpo.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return error("SUNAT devolvió una respuesta que no se pudo leer");
+        }
+
+        String fallo = texto(documento, "faultcode");
+
+        if (fallo != null) {
+            return desdeFalla(documento, fallo);
+        }
+
+        String contenido = texto(documento, "content");
+
+        if (contenido != null) {
+            return desdeContenido(contenido);
+        }
+
+        String mensaje = recortar(texto(documento, "statusMessage"));
+        return new RespuestaSunat(EstadoSunat.ERROR_ENVIO, texto(documento, "statusCode"),
+                mensaje == null ? "SUNAT no devolvió la constancia" : mensaje, null);
+    }
+
+    private RespuestaSunat desdeFalla(Document documento, String fallo) {
+        String detalle = recortar(texto(documento, "faultstring"));
+        String codigo = codigoDe(fallo);
+        return new RespuestaSunat(esRechazo(codigo) ? EstadoSunat.RECHAZADO : EstadoSunat.ERROR_ENVIO, codigo,
+                detalle == null ? "SUNAT no aceptó el comprobante" : detalle, null);
+    }
+
+    private RespuestaSunat desdeContenido(String contenido) {
         byte[] zip;
 
         try {
@@ -193,15 +259,14 @@ public class SunatGatewayDirecto implements SunatGateway {
         return new RespuestaSunat(EstadoSunat.ERROR_ENVIO, null, mensaje, null);
     }
 
-    private String sobre(Credenciales c, String nombreZip, String contenido) {
+    private String sobre(Credenciales c, String cuerpo) {
         return "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\""
                 + " xmlns:ser=\"" + NS_SERVICIO + "\" xmlns:wsse=\"" + NS_WSSE + "\">"
                 + "<soapenv:Header><wsse:Security><wsse:UsernameToken>"
                 + "<wsse:Username>" + escapar(c.usuario()) + "</wsse:Username>"
-                + "<wsse:Password>" + escapar(c.clave()) + "</wsse:Password>"
+                + "<wsse:Password Type=\"" + TIPO_CLAVE + "\">" + escapar(c.clave()) + "</wsse:Password>"
                 + "</wsse:UsernameToken></wsse:Security></soapenv:Header>"
-                + "<soapenv:Body><ser:sendBill><fileName>" + escapar(nombreZip) + "</fileName>"
-                + "<contentFile>" + contenido + "</contentFile></ser:sendBill></soapenv:Body></soapenv:Envelope>";
+                + "<soapenv:Body>" + cuerpo + "</soapenv:Body></soapenv:Envelope>";
     }
 
     private byte[] comprimir(String nombre, byte[] contenido) {
