@@ -3,6 +3,7 @@ package com.hafood.sistema.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -11,6 +12,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -31,11 +33,13 @@ public class SecurityConfig {
     ) throws Exception {
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtService, userDetailsService);
         String[] rolesSala = {"SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE", "CAJERO", "MOZO"};
+        String[] rolesSinMozo = {"SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE", "CAJERO", "BARTENDER"};
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
@@ -95,17 +99,17 @@ public class SecurityConfig {
                         .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE")
                         .requestMatchers("/api/v1/personal/**")
                         .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE")
+
                         .requestMatchers(HttpMethod.GET,
-                                "/api/sedes/**",
-                                "/api/secciones/**",
                                 "/api/categorias/**",
                                 "/api/insumos/**",
                                 "/api/platos/**",
                                 "/api/bebidas/**",
                                 "/api/recetas-platos/**",
                                 "/api/recetas-bebidas/**",
-                                "/api/v1/inventario/**"
-                        ).authenticated()
+                                "/api/v1/inventario/**")
+                        .hasAnyRole(rolesSinMozo)
+                        .requestMatchers(HttpMethod.GET, "/api/sedes/**", "/api/secciones/**").authenticated()
 
                         .requestMatchers(HttpMethod.POST, "/api/v1/inventario/**")
                         .hasAnyRole("SUPERADMIN", "ADMIN", "ADMINISTRADOR", "ENCARGADO_SEDE")

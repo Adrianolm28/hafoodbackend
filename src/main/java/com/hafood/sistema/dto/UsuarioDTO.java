@@ -20,4 +20,6 @@ public class UsuarioDTO {
     private String sedeNombre;
     private Long seccionId;
     private String seccionNombre;
+    private Boolean activo;
+
 }

@@ -1,14 +1,16 @@
 package com.hafood.sistema.controller;
 
+import com.hafood.sistema.domain.user.Usuario;
 import com.hafood.sistema.dto.SeccionDTO;
 import com.hafood.sistema.service.SeccionService;
-import com.hafood.sistema.service.SedeService;
+import com.hafood.sistema.service.SedeAccesoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,21 +19,33 @@ import org.springframework.web.bind.annotation.*;
 public class SeccionController {
 
     private final SeccionService seccionService;
+    private final SedeAccesoService sedeAccesoService;
 
     @GetMapping
-    public ResponseEntity<Page<SeccionDTO>> listar(@PageableDefault(size = 10, sort = "id") Pageable pageable) {
-        return ResponseEntity.ok(seccionService.listar(pageable));
+    public ResponseEntity<Page<SeccionDTO>> listar(
+            @PageableDefault(size = 10, sort = "id") Pageable pageable,
+            @AuthenticationPrincipal Usuario actor) {
+        Long sedeFija = sedeAccesoService.sedeFija(actor);
+
+        return ResponseEntity.ok(sedeFija == null
+                ? seccionService.listar(pageable)
+                : seccionService.listarPorSede(sedeFija, pageable));
     }
 
     @GetMapping("/sede/{sedeId}")
-    public ResponseEntity<Page<SeccionDTO>> listarPorSede(@PathVariable Long sedeId,
-                                                          @PageableDefault(size = 10, sort = "id") Pageable pageable) {
+    public ResponseEntity<Page<SeccionDTO>> listarPorSede(
+            @PathVariable Long sedeId,
+            @PageableDefault(size = 10, sort = "id") Pageable pageable,
+            @AuthenticationPrincipal Usuario actor) {
+        sedeAccesoService.exigirAcceso(actor, sedeId);
         return ResponseEntity.ok(seccionService.listarPorSede(sedeId, pageable));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<SeccionDTO> obtenerPorId(@PathVariable Long id) {
-        return ResponseEntity.ok(seccionService.obtenerPorId(id));
+    public ResponseEntity<SeccionDTO> obtenerPorId(@PathVariable Long id, @AuthenticationPrincipal Usuario actor) {
+        SeccionDTO dto = seccionService.obtenerPorId(id);
+        sedeAccesoService.exigirAcceso(actor, dto.getSedeId());
+        return ResponseEntity.ok(dto);
     }
 
     @PostMapping

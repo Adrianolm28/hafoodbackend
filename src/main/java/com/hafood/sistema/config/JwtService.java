@@ -13,10 +13,13 @@ import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 @Service
 public class JwtService {
+
+    private static final String CLAIM_TENANT = "tenantId";
 
     @Value("${jwt.secret}")
     private String secretKey;
@@ -26,8 +29,15 @@ public class JwtService {
     }
 
     public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
+        Map<String, Object> claims = new HashMap<>(extraClaims);
+        String tenant = TenantContext.getCurrentTenant();
+
+        if (tenant != null) {
+            claims.put(CLAIM_TENANT, tenant);
+        }
+
         return Jwts.builder()
-                .setClaims(extraClaims)
+                .setClaims(claims)
                 .setSubject(userDetails.getUsername())
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24))
@@ -40,21 +50,15 @@ public class JwtService {
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
-    }
-
-    private boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
-    }
-
-    private Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
+        Claims claims = extractAllClaims(token);
+        boolean mismoUsuario = userDetails.getUsername().equals(claims.getSubject());
+        boolean vigente = claims.getExpiration().after(new Date());
+        boolean mismoTenant = Objects.equals(claims.get(CLAIM_TENANT, String.class), TenantContext.getCurrentTenant());
+        return mismoUsuario && vigente && mismoTenant;
     }
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
+        return claimsResolver.apply(extractAllClaims(token));
     }
 
     private Claims extractAllClaims(String token) {

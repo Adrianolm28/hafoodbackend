@@ -56,6 +56,10 @@ public class Usuario implements UserDetails {
     @Column(name = "bloqueado_hasta")
     private Instant bloqueadoHasta;
 
+    @Column(name = "activo", nullable = false, columnDefinition = "boolean default true")
+    @Builder.Default
+    private boolean activo = true;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         List<GrantedAuthority> authorities = new ArrayList<>();
@@ -65,6 +69,12 @@ public class Usuario implements UserDetails {
         }
         return authorities;
     }
+
+    @Override
+    public boolean isEnabled() {
+        return activo;
+    }
+
     @Override
     public boolean isAccountNonLocked() {
         return bloqueadoHasta == null || Instant.now().isAfter(bloqueadoHasta);

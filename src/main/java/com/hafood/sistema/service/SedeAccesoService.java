@@ -17,6 +17,15 @@ public class SedeAccesoService {
 
     @Transactional(readOnly = true)
     public void exigirAcceso(Usuario actor, Long sedeId) {
+        Long fija = sedeFija(actor);
+
+        if (fija != null && !fija.equals(sedeId)) {
+            throw prohibido();
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Long sedeFija(Usuario actor) {
         if (actor == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sesión no válida");
         }
@@ -25,21 +34,19 @@ public class SedeAccesoService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sesión no válida"));
 
         if (tieneRol(usuario, "ROLE_SUPERADMIN") || tieneRol(usuario, "ROLE_ADMIN")) {
-            return;
+            return null;
         }
 
         Sede sede = usuario.getSede();
 
         if (sede == null) {
             if (tieneRol(usuario, "ROLE_ADMINISTRADOR")) {
-                return;
+                return null;
             }
             throw prohibido();
         }
 
-        if (!sede.getId().equals(sedeId)) {
-            throw prohibido();
-        }
+        return sede.getId();
     }
 
     private boolean tieneRol(Usuario usuario, String rol) {
